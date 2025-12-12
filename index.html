@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Voting System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .presenter-view, .voter-view {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .presenter-view {
+            display: block;
+        }
+
+        .voter-view {
+            display: none;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        .question {
+            font-size: 1.8em;
+            color: #444;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin: 40px 0;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        #qrcode {
+            display: inline-block;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .vote-link {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #667eea;
+            word-break: break-all;
+        }
+
+        .results {
+            margin-top: 40px;
+        }
+
+        .result-bar {
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .option-label {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .bar-container {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 50px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .vote-count {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .voting-buttons {
+            display: grid;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .vote-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 25px;
+            font-size: 1.3em;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+
+        .vote-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .vote-button:active {
+            transform: translateY(0);
+        }
+
+        .vote-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .vote-button.voted {
+            background: #28a745;
+        }
+
+        .success-message {
+            text-align: center;
+            font-size: 1.5em;
+            color: #28a745;
+            margin-top: 30px;
+            font-weight: 600;
+        }
+
+        .total-votes {
+            text-align: center;
+            font-size: 1.3em;
+            color: #666;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: #856404;
+        }
+
+        .info-box h3 {
+            margin-bottom: 10px;
+            color: #856404;
+        }
+
+        .sync-status {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .sync-status.syncing {
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .presenter-view, .voter-view {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .question {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Presenter View -->
+        <div class="presenter-view" id="presenterView">
+            <h1>🎯 Live Voting System</h1>
+            
+            <div class="info-box">
+                <h3>📡 Setup Instructions:</h3>
+                <p>For real-time sync across devices, you need to:</p>
+                <ol style="margin-left: 20px; margin-top: 10px;">
+                    <li>Host this file on a web server (not locally)</li>
+                    <li>Use services like Netlify, Vercel, or GitHub Pages</li>
+                    <li>Or run a simple server: <code>python -m http.server 8000</code></li>
+                </ol>
+                <p style="margin-top: 10px;"><strong>Currently:</strong> Votes are stored locally in your browser. Each device will have its own count.</p>
+            </div>
+
+            <div class="question" id="questionDisplay">
+                What is your favorite programming language?
+            </div>
+
+            <div class="qr-section">
+                <h2 style="margin-bottom: 20px; color: #667eea;">Scan to Vote</h2>
+                <div id="qrcode"></div>
+                <div class="vote-link" id="voteLink"></div>
+            </div>
+
+            <div class="sync-status" id="syncStatus"></div>
+
+            <div class="total-votes">
+                Total Votes: <strong id="totalVotes">0</strong>
+            </div>
+
+            <div class="results">
+                <h2 style="color: #667eea; margin-bottom: 20px;">Live Results</h2>
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+
+        <!-- Voter View -->
+        <div class="voter-view" id="voterView">
+            <h1>🗳️ Cast Your Vote</h1>
+            
+            <div class="question" id="voterQuestion">
+                What is your favorite programming language?
+            </div>
+
+            <div class="voting-buttons" id="votingButtons"></div>
+
+            <div class="success-message" id="successMessage" style="display: none;">
+                ✓ Thank you for voting!
+            </div>
+
+            <div class="sync-status" id="voterSyncStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        // Poll configuration
+        const pollData = {
+            question: "What is your favorite programming language?",
+            options: [
+                "JavaScript",
+                "Python",
+                "Java",
+                "C++",
+                "Go"
+            ]
+        };
+
+        // Storage key
+        const STORAGE_KEY = 'mentimeter-votes';
+        const SYNC_INTERVAL = 2000; // 2 seconds
+
+        // Initialize votes in localStorage
+        function initializeVotes() {
+            const existing = localStorage.getItem(STORAGE_KEY);
+            if (!existing) {
+                const initialVotes = {};
+                pollData.options.forEach(option => {
+                    initialVotes[option] = 0;
+                });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(initialVotes));
+            }
+        }
+
+        // Get current votes
+        function getVotes() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (data) {
+                return JSON.parse(data);
+            }
+            const initialVotes = {};
+            pollData.options.forEach(option => {
+                initialVotes[option] = 0;
+            });
+            return initialVotes;
+        }
+
+        // Update vote
+        function updateVote(option) {
+            try {
+                const votes = getVotes();
+                votes[option] = (votes[option] || 0) + 1;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+                
+                // Try to broadcast to other tabs
+                broadcastVote(votes);
+                return true;
+            } catch (error) {
+                console.error('Error updating vote:', error);
+                alert('Sorry, there was an error recording your vote. Please try again.');
+                return false;
+            }
+        }
+
+        // Broadcast storage changes to other tabs
+        function broadcastVote(votes) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: STORAGE_KEY,
+                newValue: JSON.stringify(votes)
+            }));
+        }
+
+        // Listen for storage changes from other tabs
+        window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY) {
+                if (!isVoter) {
+                    updateResults();
+                }
+            }
+        });
+
+        // Check if this is voter view
+        const urlParams = new URLSearchParams(window.location.search);
+        const isVoter = urlParams.get('vote') === 'true';
+
+        async function setupVoterView() {
+            // Show voter view
+            document.getElementById('presenterView').style.display = 'none';
+            document.getElementById('voterView').style.display = 'block';
+            
+            // Set question
+            document.getElementById('voterQuestion').textContent = pollData.question;
+            
+            // Create voting buttons
+            const votingButtons = document.getElementById('votingButtons');
+            pollData.options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'vote-button';
+                button.textContent = option;
+                button.onclick = () => {
+                    const success = updateVote(option);
+                    if (success) {
+                        button.classList.add('voted');
+                        button.textContent = option + ' ✓';
+                        button.disabled = true;
+                        
+                        // Disable all buttons
+                        document.querySelectorAll('.vote-button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                        
+                        // Show success message
+                        document.getElementById('successMessage').style.display = 'block';
+                        document.getElementById('voterSyncStatus').textContent = '✓ Vote recorded!';
+                    }
+                };
+                votingButtons.appendChild(button);
+            });
+        }
+
+        function setupPresenterView() {
+            // Initialize votes
+            initializeVotes();
+            
+            // Generate QR code with the current page URL
+            const voteUrl = window.location.href.split('?')[0] + '?vote=true';
+            new QRCode(document.getElementById('qrcode'), {
+                text: voteUrl,
+                width: 256,
+                height: 256,
+                colorDark: '#667eea',
+                colorLight: '#ffffff',
+            });
+            
+            document.getElementById('voteLink').textContent = voteUrl;
+            
+            // Display results
+            function updateResults() {
+                const votes = getVotes();
+                const resultsContainer = document.getElementById('resultsContainer');
+                resultsContainer.innerHTML = '';
+                
+                let totalVotes = 0;
+                pollData.options.forEach(option => {
+                    totalVotes += votes[option] || 0;
+                });
+                
+                document.getElementById('totalVotes').textContent = totalVotes;
+                
+                pollData.options.forEach(option => {
+                    const voteCount = votes[option] || 0;
+                    const percentage = totalVotes > 0 ? (voteCount / totalVotes * 100).toFixed(1) : 0;
+                    
+                    const resultBar = document.createElement('div');
+                    resultBar.className = 'result-bar';
+                    resultBar.innerHTML = `
+                        <div class="option-label">
+                            <span>${option}</span>
+                            <span class="vote-count">${voteCount} votes</span>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar-fill" style="width: ${percentage}%">
+                                ${percentage > 5 ? percentage + '%' : ''}
+                            </div>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(resultBar);
+                });
+                
+                // Update sync status
+                const syncStatus = document.getElementById('syncStatus');
+                const now = new Date().toLocaleTimeString();
+                syncStatus.textContent = `Last updated: ${now}`;
+            }
+            
+            // Update results immediately and then every 2 seconds
+            updateResults();
+            setInterval(updateResults, SYNC_INTERVAL);
+        }
+
+        if (isVoter) {
+            setupVoterView();
+        } else {
+            setupPresenterView();
+        }
+    </script>
+</body>
+</html>
